@@ -13,16 +13,18 @@
     "chalk": "^5.4.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "cpf-cnpj-validator": "^1.0.3",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@ljharb/tsconfig": "^0.3.2",
     "@types/node": "^24.3.0",
     "eslint": "^9.27.0",
-    "nodemon": "^3.1.10",
+    "nodemon": "^3.1.11",
     "prettier": "^3.5.3",
     "prisma": "^6.15.0",
     "typescript": "^5.9.2"

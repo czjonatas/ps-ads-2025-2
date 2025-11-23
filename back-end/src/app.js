@@ -5,6 +5,7 @@ import logger from 'morgan'
 import dotenv from 'dotenv'
 dotenv.config()
 import indexRouter from './routes/index.js'
+import 'dotenv/config';
 
 const app = express()
 // Configurando o CORS para aceitar requisições a partir
