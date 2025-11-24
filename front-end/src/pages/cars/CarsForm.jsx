@@ -11,28 +11,27 @@ import { parseISO } from 'date-fns'
 import { feedbackWait, feedbackNotify, feedbackConfirm } from '../../ui/Feedback'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMask } from '@react-input/mask'
-import Checkbox from '@mui/material/Checkbox';
-import FormControlLabel from '@mui/material/FormControlLabel';
-
+import { Checkbox, FormControlLabel } from '@mui/material'
 import fetchAuth from '../../lib/fetchAuth'
+import Car from '../../models/Car.js'
+import { ZodError } from 'zod'
 
 export default function CarsForm() {
 
   const carsColor = [
-    { value: "Amarelo", label: "Amarelo" },
-    { value: "Azul", label: "Azul" },
-    { value: "Branco", label: "Branco" },
-    { value: "Carmim", label: "Carmim" },
-    { value: "Ciano", label: "Ciano" },
-    { value: "Cinza", label: "Cinza" },
-    { value: "Dourado", label: "Dourado" },
-    { value: "Marrom", label: "Marrom" },
-    { value: "Prata", label: "Prata" },
-    { value: "Preto", label: "Preto" },
-    { value: "Roxo", label: "Roxo" },
-    { value: "Verde", label: "Verde" },
-    { value: "Vermelho", label: "Vermelho" },
-    { value: "Vinho", label: "Vinho" }
+    { value: "AMARELO", label: "Amarelo" },
+    { value: "AZUL", label: "Azul" },
+    { value: "BRANCO", label: "Branco" },
+    { value: "CINZA", label: "Cinza" },
+    { value: "DOURADO", label: "Dourado" },
+    { value: "LARANJA", label: "Laranja" },
+    { value: "MARROM", label: "Marrom" },
+    { value: "PRATA", label: "Prata" },
+    { value: "PRETO", label: "Preto" },
+    { value: "ROSA", label: "Rosa" },
+    { value: "ROXO", label: "Roxo" },
+    { value: "VERDE", label: "Verde" },
+    { value: "VERMELHO", label: "Vermelho" }
   ]
 
   const currentYear = new Date().getFullYear();
@@ -72,11 +71,13 @@ export default function CarsForm() {
   // Variáveis de estado
   const [state, setState] = React.useState({
     car: { ...formDefaults },
-    formModified: false
+    formModified: false,
+   inputErrors: {}
   })
   const {
     car,
-    formModified
+    formModified,
+    inputErrors
   } = state
 
   // Se estivermos editando um cliente, precisamos buscar os seus dados
@@ -90,8 +91,11 @@ export default function CarsForm() {
   async function loadData() {
     feedbackWait(true)
     try {
-      const result = await fetchAuth.get(`/cars/${params.id}`)
-
+      // const response = await fetch(
+      //   import.meta.env.VITE_API_BASE + `/cars/${params.id}`
+      // )
+      // const result = await response.json()
+     const result = await fetchAuth.get(`/cars/${params.id}`)
       // Converte o formato de data armazenado no banco de dados
       // para o formato reconhecido pelo componente DatePicker
       if(result.selling_date) result.selling_date = parseISO(result.selling_date)
@@ -126,7 +130,13 @@ export default function CarsForm() {
     event.preventDefault()    // Impede o recarregamento da página
     feedbackWait(true)
     try {
-            // Se houver parâmetro na rota, significa que estamos alterando
+       // Invoca a validação do Zod
+     Car.parse(car)
+
+      // Prepara as opções para o fetch
+     
+
+      // Se houver parâmetro na rota, significa que estamos alterando
       // um registro existente. Portanto, fetch() precisa ser chamado
       // com o verbo PUT
       if(params.id) {
@@ -135,6 +145,7 @@ export default function CarsForm() {
       // Senão, envia com o método POST para criar um novo registro
       else {
         await fetchAuth.post('/cars', car)
+
       }
 
       feedbackNotify('Item salvo com sucesso.', 'success', 2500, () => {
@@ -144,7 +155,19 @@ export default function CarsForm() {
     }
     catch(error) {
       console.error(error)
-      feedbackNotify('ERRO: ' + error.message, 'error')
+
+      // Em caso de erro do Zod, preenchemos a variável de estado
+     // inputErrors com os erros para depois exibir abaixo de cada
+     // campo de entrada
+          if(error instanceof ZodError) {
+        const errorMessages = {}
+        for(let i of error.issues) errorMessages[i.path[0]] = i.message
+
+        setState({ ...state, inputErrors: errorMessages })
+
+        notify('Há campos com valores inválidos. Verifique.', 'error')
+      }
+      else notify(error.message, 'error')
     }
     finally {
       feedbackWait(false)
@@ -179,6 +202,9 @@ export default function CarsForm() {
           autoFocus
           value={car.brand}
           onChange={handleFieldChange}
+          error={inputErrors?.brand}
+         helperText={inputErrors?.brand}
+
         />
 
         <div className="MuiFormControl-root">
@@ -189,6 +215,7 @@ export default function CarsForm() {
                 onChange={e => {
                   const event = { target: { name: 'imported', value: e.target.checked } }
                   handleFieldChange(event)
+
                 }}
               />
             }
@@ -204,6 +231,9 @@ export default function CarsForm() {
           required
           value={car.model}
           onChange={handleFieldChange}
+          error={inputErrors?.model}
+         helperText={inputErrors?.model}
+
         />
 
         <TextField
@@ -215,6 +245,9 @@ export default function CarsForm() {
           required
           value={car.plates}
           onChange={handleFieldChange}
+          error={inputErrors?.plates}
+         helperText={inputErrors?.plates}
+
         />
 
         <TextField
@@ -226,6 +259,9 @@ export default function CarsForm() {
           value={car.color}
           select
           onChange={handleFieldChange}
+          error={inputErrors?.color}
+         helperText={inputErrors?.color}
+
         >
           {
             carsColor.map(c => 
@@ -237,20 +273,21 @@ export default function CarsForm() {
         </TextField>
         
         <TextField
-          variant="outlined"
-          name="selling_price"
-          label="Preço de Venda"
-          fullWidth
-          required
-          inputMode="numeric"
-          value={car.selling_price}
-          onChange={(e) => {
-            const value = e.target.value;
-            if (/^\d*$/.test(value)) {
-              handleFieldChange(e);
-            }
-          }}
-        />
+        variant="outlined"
+        name="selling_price"
+        label="Preço de Venda"
+        fullWidth
+        inputMode="numeric"
+        value={car.selling_price}
+        onChange={(e) => {
+          const value = e.target.value;
+          if (/^\d*$/.test(value)) {
+            handleFieldChange(e);
+          }
+        }}
+        error={Boolean(inputErrors.selling_price)}
+        helperText={inputErrors.selling_price}
+      />
 
         <TextField
           variant="outlined"

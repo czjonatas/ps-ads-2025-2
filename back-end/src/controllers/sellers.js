@@ -11,7 +11,7 @@ controller.create = async function(req, res) {
     // Para a inserção no BD, os dados são enviados
     // dentro de um objeto chamado "body" que vem
     // dentro da requisição ("req")
-    await prisma.customer.create({ data: req.body })
+    await prisma.seller.create({ data: req.body })
 
     // Se tudo der certo, enviamos o código HTTP
     // apropriado, no caso
@@ -31,10 +31,10 @@ controller.create = async function(req, res) {
 
 controller.retrieveAll = async function(req, res) {
   try {
-    // Recupera todos os registros de clientes, ordenados
-    // pelo campo "name"
-    const result = await prisma.customer.findMany({
-      orderBy: [ { name: 'asc' } ]
+    // Recupera todos os registros de vendedores, ordenados
+    // pelo campo "fullname"
+    const result = await prisma.seller.findMany({
+      orderBy: [ { fullname: 'asc' } ]
     })
 
     // HTTP 200: OK (implícito)
@@ -53,9 +53,9 @@ controller.retrieveAll = async function(req, res) {
 
 controller.retrieveOne = async function (req, res) {
   try {
-    // Busca no banco de dados apenas o cliente indicado
+    // Busca no banco de dados apenas o vendedor indicado
     // pelo parâmetro "id"
-    const result = await prisma.customer.findUnique({
+    const result = await prisma.seller.findUnique({
       where: { id: Number(req.params.id) }
     })
 
@@ -79,7 +79,7 @@ controller.update = async function(req, res) {
   try {
     // Busca o registro no banco de dados por seu id
     // e o atualiza com as informações que vieram em req.body
-    await prisma.customer.update({
+    await prisma.seller.update({
       where: { id: Number(req.params.id) },
       data: req.body
     })
@@ -102,7 +102,7 @@ controller.update = async function(req, res) {
 
 controller.delete = async function (req, res) {
   try {
-    await prisma.customer.delete({
+    await prisma.seller.delete({
       where: { id:  Number(req.params.id) }
     })
 

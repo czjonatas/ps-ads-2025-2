@@ -1,9 +1,5 @@
-import React from 'react'
-import Typography from '@mui/material/Typography'
-import Box from '@mui/material/Box'
-import TextField from '@mui/material/TextField'
-import MenuItem from '@mui/material/MenuItem'
-import Button from '@mui/material/Button'
+import React, { useState, useEffect } from 'react'
+import { Typography, Box, TextField, MenuItem, Button } from '@mui/material'
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import { ptBR } from 'date-fns/locale/pt-BR'
@@ -11,12 +7,13 @@ import { parseISO } from 'date-fns'
 import { feedbackWait, feedbackNotify, feedbackConfirm } from '../../ui/Feedback'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMask } from '@react-input/mask'
-
 import fetchAuth from '../../lib/fetchAuth'
+import ClienteSchema from '../../models/Customer.js'
+import { ZodError } from 'zod'
 
-export default function CustomersForm() {
+export default function FormularioCliente() {
 
-  const brazilianStates = [
+  const estadosBR = [
     { value: 'DF', label: 'Distrito Federal' },
     { value: 'ES', label: 'Espírito Santo' },
     { value: 'GO', label: 'Goiás' },
@@ -27,314 +24,227 @@ export default function CustomersForm() {
     { value: 'SP', label: 'São Paulo' }
   ]
 
-  const identDocumentRef = useMask({
-    mask: "###.###.###-##",
-    replacement: { 
-      '#': /[0-9]/,   // Somente dígitos
-    },
-    showMask: false
-  })
+  const cpfRef = useMask({ mask: "###.###.###-##", replacement: { '#': /[0-9]/ }, showMask: false })
+  const telefoneRef = useMask({ mask: "(##) %####-####", replacement: { '#': /[0-9]/, '%': /[0-9\s]/ }, showMask: false })
 
-  const phoneRef = useMask({
-    mask: "(##) %####-####",
-    replacement: { 
-      '#': /[0-9]/,   // Somente dígitos
-      '%': /[0-9\s]/  // Dígitos ou espaço em branco (\s)
-    },
-    showMask: false
-  })
-
-  // Por padrão, todos os campos começam com uma string vazia como valor.
-  // A exceção é o campo birth_date, do tipo data, que, por causa do
-  // funcionamento do componente DatePicker, deve começar como null
-  const formDefaults = {
-    name: '',
-    ident_document: '',
-    birth_date: null,
-    street_name: '',
-    house_number: '',
-    complements: '',
-    district: '',
-    municipality: '',
-    state: '',
-    phone: '',
+  const formularioInicial = {
+    nomeCompleto: '',
+    documentoIdentidade: '',
+    dataNascimento: null,
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+    telefone: '',
     email: ''
   }
 
   const navigate = useNavigate()
   const params = useParams()
 
-  // Variáveis de estado
-  const [state, setState] = React.useState({
-    customer: { ...formDefaults },
-    formModified: false
+  const [formState, setFormState] = useState({
+    cliente: { ...formularioInicial },
+    alterado: false,
+    erros: {}
   })
-  const {
-    customer,
-    formModified
-  } = state
+  const { cliente, alterado, erros } = formState
 
-  // Se estivermos editando um cliente, precisamos buscar os seus dados
-  // no servidor assim que o componente for carregado
-  React.useEffect(() => {
-    // Sabemos que estamos editando (e não cadastrando um novo) cliente
-    // quando a rota ativa contiver um parâmetro chamado id
-    if(params.id) loadData()
-  }, [])
+  useEffect(() => { if(params.id) carregarCliente() }, [])
 
-  async function loadData() {
+  async function carregarCliente() {
     feedbackWait(true)
     try {
-      const result = await fetchAuth.get(`/customers/${params.id}`)
-
-      // Converte o formato de data armazenado no banco de dados
-      // para o formato reconhecido pelo componente DatePicker
-      if(result.birth_date) result.birth_date = parseISO(result.birth_date)
-
-      // Armazena os dados obtidos na variável de estado
-      setState({ ...state, customer: result })
-    }
-    catch(error) {
-      console.error(error)
-      feedbackNotify('ERRO: ' + error.message)
-    }
-    finally {
-      feedbackWait(false)
-    }
+      const resposta = await fetchAuth.get(`/customers/${params.id}`)
+      if(resposta.dataNascimento) resposta.dataNascimento = parseISO(resposta.dataNascimento)
+      setFormState({ ...formState, cliente: resposta })
+    } catch(err) {
+      console.error(err)
+      feedbackNotify('Erro ao carregar cliente: ' + err.message)
+    } finally { feedbackWait(false) }
   }
 
-  /* Preenche o campo do objeto "customer" conforme o campo correspondente do
-     formulário for modificado */
-  function handleFieldChange(event) {
-    // Vamos observar no console as informações que chegam à função
-    console.log('CAMPO MODIFICADO:', {
-      name: event.target.name,
-      value: event.target.value
-    })
-
-    // Tira uma cópia da variável de estado "customer"
-    const customerCopy = { ...customer }
-    // Altera em customerCopy apenas o campo da vez
-    customerCopy[event.target.name] = event.target.value
-    // Atualiza a variável de estado, substituindo o objeto "customer"
-    // por sua cópia atualizada
-    setState({ ...state, customer: customerCopy, formModified: true })
+  function atualizarCampo(event) {
+    const copiaCliente = { ...cliente, [event.target.name]: event.target.value }
+    setFormState({ ...formState, cliente: copiaCliente, alterado: true })
   }
 
-  async function handleFormSubmit(event) {
-    event.preventDefault()    // Impede o recarregamento da página
+  async function enviarFormulario(event) {
+    event.preventDefault()
     feedbackWait(true)
     try {
-      // Se houver parâmetro na rota, significa que estamos alterando
-      // um registro existente. Portanto, fetch() precisa ser chamado
-      // com o verbo PUT
-      if(params.id) {
-        await fetchAuth.put(`/customers/${params.id}`, customer)
-      }
-      // Senão, envia com o método POST para criar um novo registro
-      else {
-        await fetchAuth.post('/customers', customer)
-      }
-
-      feedbackNotify('Item salvo com sucesso.', 'success', 2500, () => {
-        // Retorna para a página de listagem
+      ClienteSchema.parse(cliente)
+      if(params.id) await fetchAuth.put(`/customers/${params.id}`, cliente)
+      else await fetchAuth.post('/customers', cliente)
+      feedbackNotify('Cliente salvo com sucesso!', 'success', 2500, () => {
         navigate('..', { relative: 'path', replace: true })
       })
-    }
-    catch(error) {
-      console.error(error)
-      feedbackNotify('ERRO: ' + error.message, 'error')
-    }
-    finally {
-      feedbackWait(false)
-    }
+    } catch(err) {
+      console.error(err)
+      if(err instanceof ZodError) {
+        const mensagens = {}
+        for(let e of err.issues) mensagens[e.path[0]] = e.message
+        setFormState({ ...formState, erros: mensagens })
+        feedbackNotify('Campos inválidos. Corrija antes de salvar.', 'error')
+      } else feedbackNotify(err.message, 'error')
+    } finally { feedbackWait(false) }
   }
 
-  async function handleBackButtonClick() {
-    if(
-      formModified &&
-      ! await feedbackConfirm('Há informações não salvas. Deseja realmente sair?')
-    ) return    // Sai da função sem fazer nada
-
-    // Aqui o usuário respondeu que quer voltar e perder os dados
-    navigate('..', { relative: 'path', replace: 'true' })
+  async function voltarClick() {
+    if(alterado && !await feedbackConfirm('Existem alterações não salvas. Deseja sair?')) return
+    navigate('..', { relative: 'path', replace: true })
   }
 
   return <>
-    <Typography variant="h1" gutterBottom>
-      Cadastro de clientes
-    </Typography>
-
-    <Box className="form-fields">
-      <form onSubmit={handleFormSubmit}>
-
-        {/* autoFocus ~> foco do teclado no primeiro campo */}
-        <TextField 
+    <Typography variant="h1" gutterBottom>Cadastro de Cliente</Typography>
+    <Box className="form-container">
+      <form onSubmit={enviarFormulario}>
+        <TextField
           variant="outlined"
-          name="name"
+          name="nomeCompleto"
           label="Nome completo"
           fullWidth
           required
           autoFocus
-          value={customer.name}
-          onChange={handleFieldChange}
+          value={cliente.nomeCompleto}
+          onChange={atualizarCampo}
+          error={!!erros?.nomeCompleto}
+          helperText={erros?.nomeCompleto}
         />
 
         <TextField
-          inputRef={identDocumentRef}
+          inputRef={cpfRef}
           variant="outlined"
-          name="ident_document"
+          name="documentoIdentidade"
           label="CPF"
           fullWidth
           required
-          value={customer.ident_document}
-          onChange={handleFieldChange}
+          value={cliente.documentoIdentidade}
+          onChange={atualizarCampo}
+          error={!!erros?.documentoIdentidade}
+          helperText={erros?.documentoIdentidade}
         />
 
-        {/* 
-          O evento onChange do componente DatePicker não passa o parâmetro
-          "event", como o TextField, e sim a própria data que foi modificada.
-          Por isso, ao chamar a função handleFieldChange() no DatePicker,
-          precisamos criar um parâmetro "event" "fake" com as informações
-          necessárias.
-        */}
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
-          <DatePicker 
+          <DatePicker
             label="Data de nascimento"
-            value={customer.birth_date}
+            value={cliente.dataNascimento}
             slotProps={{
               textField: {
                 variant: "outlined",
-                fullWidth: true
+                fullWidth: true,
+                error: !!erros?.dataNascimento,
+                helperText: erros?.dataNascimento
               }
             }}
-            onChange={ date => {
-              const event = { target: { name: 'birth_date', value: date } }
-              handleFieldChange(event)
-            }}
+            onChange={date => atualizarCampo({ target: { name: 'dataNascimento', value: date } })}
           />
         </LocalizationProvider>
 
-        <TextField 
+        <TextField
           variant="outlined"
-          name="street_name"
+          name="logradouro"
           label="Logradouro"
-          placeholder="Rua, Av., etc."
           fullWidth
           required
-          value={customer.street_name}
-          onChange={handleFieldChange}
-        />
-
-        <TextField 
-          variant="outlined"
-          name="house_number"
-          label="nº"
-          fullWidth
-          required
-          value={customer.house_number}
-          onChange={handleFieldChange}
+          value={cliente.logradouro}
+          onChange={atualizarCampo}
+          error={!!erros?.logradouro}
+          helperText={erros?.logradouro}
         />
 
         <TextField
           variant="outlined"
-          name="complements"
-          label="Complemento"
-          placeholder="Casa, apto., bloco, etc."
+          name="numero"
+          label="Número"
           fullWidth
-          value={customer.complements}
-          onChange={handleFieldChange}
+          required
+          value={cliente.numero}
+          onChange={atualizarCampo}
+          error={!!erros?.numero}
+          helperText={erros?.numero}
         />
 
-        <TextField 
+        <TextField
           variant="outlined"
-          name="district"
+          name="complemento"
+          label="Complemento"
+          fullWidth
+          value={cliente.complemento}
+          onChange={atualizarCampo}
+          error={!!erros?.complemento}
+          helperText={erros?.complemento}
+        />
+
+        <TextField
+          variant="outlined"
+          name="bairro"
           label="Bairro"
           fullWidth
           required
-          value={customer.district}
-          onChange={handleFieldChange}
-        />
-
-        <TextField 
-          variant="outlined"
-          name="municipality"
-          label="Município"
-          fullWidth
-          required
-          value={customer.municipality}
-          onChange={handleFieldChange}
+          value={cliente.bairro}
+          onChange={atualizarCampo}
+          error={!!erros?.bairro}
+          helperText={erros?.bairro}
         />
 
         <TextField
-          variant="outlined" 
-          name="state"
-          label="UF" 
+          variant="outlined"
+          name="cidade"
+          label="Cidade"
           fullWidth
           required
-          value={customer.state}
+          value={cliente.cidade}
+          onChange={atualizarCampo}
+          error={!!erros?.cidade}
+          helperText={erros?.cidade}
+        />
+
+        <TextField
+          variant="outlined"
+          name="estado"
+          label="Estado"
+          fullWidth
+          required
           select
-          onChange={handleFieldChange}
+          value={cliente.estado}
+          onChange={atualizarCampo}
+          error={!!erros?.estado}
+          helperText={erros?.estado}
         >
-          {
-            brazilianStates.map(s => 
-              <MenuItem key={s.value} value={s.value}>
-                {s.label}
-              </MenuItem>
-            )
-          }
+          {estadosBR.map(e => <MenuItem key={e.value} value={e.value}>{e.label}</MenuItem>)}
         </TextField>
 
         <TextField
-          inputRef={phoneRef}
+          inputRef={telefoneRef}
           variant="outlined"
-          name="phone"
-          label="Telefone/celular"
+          name="telefone"
+          label="Telefone"
           fullWidth
           required
-          value={customer.phone}
-          onChange={handleFieldChange}
+          value={cliente.telefone}
+          onChange={atualizarCampo}
+          error={!!erros?.telefone}
+          helperText={erros?.telefone}
         />
 
-        <TextField 
+        <TextField
           variant="outlined"
           name="email"
           label="E-mail"
           fullWidth
           required
-          value={customer.email}
-          onChange={handleFieldChange}
+          value={cliente.email}
+          onChange={atualizarCampo}
+          error={!!erros?.email}
+          helperText={erros?.email}
         />
 
-        <Box sx={{
-          display: 'flex',
-          justifyContent: 'space-around',
-          width: '100%'
-        }}>
-          <Button
-            variant="contained"
-            color="secondary"
-            type="submit"
-          >
-            Salvar
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={handleBackButtonClick}
-          >
-            Voltar
-          </Button>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+          <Button variant="contained" color="secondary" type="submit">Salvar</Button>
+          <Button variant="outlined" onClick={voltarClick}>Voltar</Button>
         </Box>
-
-        <Box sx={{
-          fontFamily: 'monospace',
-          display: 'flex',
-          flexDirection: 'column',
-          width: '100vw'
-        }}>
-          { JSON.stringify(customer, null, ' ') }
-        </Box>
-
       </form>
     </Box>
   </>

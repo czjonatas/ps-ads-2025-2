@@ -7,7 +7,6 @@
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
- 
 }
 
 datasource db {
@@ -55,12 +54,13 @@ model User {
   password          String        
   is_admin          Boolean       @default(false)
 }
+
 model Seller {
-  id                Int      @id @default(autoincrement())
+  id                Int           @id @default(autoincrement())
   fullname          String
   birth_date        DateTime
-  identity_document String   @unique
-  email             String   @unique
+  identity_document String        @unique
+  email             String        @unique
   phone             String
-  is_manager        Boolean  @default(false)
+  is_manager        Boolean       @default(false)        
 }

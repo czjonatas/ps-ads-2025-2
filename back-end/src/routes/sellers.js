@@ -1,7 +1,6 @@
-import express from 'express'
-import controller from '../controllers/sellerController.js'
-
-const router = express.Router()
+import { Router } from 'express'
+import controller from '../controllers/sellers.js'
+const router = Router()
 
 router.post('/', controller.create)
 router.get('/', controller.retrieveAll)

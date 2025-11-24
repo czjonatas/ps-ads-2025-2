@@ -1,4 +1,7 @@
 import prisma from '../database/client.js'
+import Car from '../models/Car.js'
+import { ZodError } from 'zod'
+
 
 const controller = {}   // Objeto vazio
 
@@ -8,6 +11,16 @@ const controller = {}   // Objeto vazio
 // res ~> representa a resposta (response)
 controller.create = async function(req, res) {
   try {
+    // Sempre que houver um campo que represente uma data,
+   // precisamos garantir sua conversão para o tipo Date
+   // antes de passá-lo ao Zod para validação
+   if(req.body.birth_date) req.body.selling_date = new Date(selling_date)
+
+
+   // Invoca a validação do modelo do Zod para os dados que
+   // vieram em req.body
+   Car.parse(req.body)
+
     // Para a inserção no BD, os dados são enviados
     // dentro de um objeto chamado "body" que vem
     // dentro da requisição ("req")
@@ -21,6 +34,9 @@ controller.create = async function(req, res) {
   catch(error) {
     // Se algo de errado ocorrer, cairemos aqui
     console.error(error)  // Exibe o erro no terminal
+    // Se for erro de validação do Zod, retorna
+   // HTTP 422: Unprocessable Entity
+   if(error instanceof ZodError) res.status(422).send(error.issues)
 
     // Enviamos como resposta o código HTTP relativo
     // a erro interno do servidor
@@ -29,10 +45,10 @@ controller.create = async function(req, res) {
   }
 }
 
-controller.brand = async function(req, res) {
+controller.retrieveAll = async function(req, res) {
   try {
-    // Recupera todos os registros de veículos, ordenados
-    // pelo campo "brand"
+    // Recupera todos os registros de clientes, ordenados
+    // pelo campo "name"
     const result = await prisma.car.findMany({
       orderBy: [ { brand: 'asc' } ]
     })
@@ -53,7 +69,7 @@ controller.brand = async function(req, res) {
 
 controller.retrieveOne = async function (req, res) {
   try {
-    // Busca no banco de dados apenas o veículo indicado
+    // Busca no banco de dados apenas o cliente indicado
     // pelo parâmetro "id"
     const result = await prisma.car.findUnique({
       where: { id: Number(req.params.id) }
@@ -75,51 +91,58 @@ controller.retrieveOne = async function (req, res) {
   }
 }
 
-controller.update = async function(req, res) {
-  try {
-    // Busca o registro no banco de dados por seu id
-    // e o atualiza com as informações que vieram em req.body
+controller.update = async function (req, res){
+  try{
+     // Sempre que houver um campo que represente uma data,
+   // precisamos garantir sua conversão para o tipo Date
+   // antes de passá-lo ao Zod para validação
+   if(req.body.birth_date) req.body.birth_date = new Date(req.body.birth_date)
+
+
+   // Invoca a validação do modelo do Zod para os dados que
+   // vieram em req.body
+   Car.parse(req.body)
+    //Busca o registro no banco de dados por seu id
+    //e o atualiza com as informações que vieram em req.body
     await prisma.car.update({
-      where: { id: Number(req.params.id) },
+      where: { id: Number(req.params.id)},
       data: req.body
     })
-
-    // Encontrou e atualizou ~> HTTP 204: No Content
+    //Encontrou e atualizou ~> HTTP 204: No content
     res.status(204).end()
   }
   catch(error) {
     // Se algo de errado ocorrer, cairemos aqui
     console.error(error)  // Exibe o erro no terminal
 
-    // Não encontrou e não atualizou ~> HTTP 404: Not Found
-    if(error?.code === 'P2025') res.status(404).end()
-
-    // Se não for erro de não encontrado, retorna o habitual
+    //Não encontrou e não atualizou ~>HTTP 404:Not found
+    if(error?.code ==='P2025')res.status(404).end()
+       // Erro do Zod ~> HTTP 422: Unprocessable Entity
+   else if(error instanceof ZodError) res.status(422).send(error.issues)
+    //Se não for erro de não encontrado, retorna o habitual
     // HTTP 500: Internal Server Error
     else res.status(500).end()
   }
 }
 
-controller.delete = async function (req, res) {
-  try {
+controller.delete = async function (req,res){
+  try{
     await prisma.car.delete({
-      where: { id:  Number(req.params.id) }
+      where: { id: Number(req.params.id)}
     })
-
-    // Encontrou e excluiu ~> HTTP 204: No Content
+    //Encontrou e excluiu ~>HTTP 204: No content
     res.status(204).end()
   }
   catch(error) {
     // Se algo de errado ocorrer, cairemos aqui
     console.error(error)  // Exibe o erro no terminal
 
-    // Não encontrou e não excluiu ~> HTTP 404: Not Found
-    if(error?.code === 'P2025') res.status(404).end()
+    //Não encontrou e não atualizou ~>HTTP 404:Not found
+    if(error?.code ==='P2025')res.status(404).end()
 
-    // Se não for erro de não encontrado, retorna o habitual
+    //Se não for erro de não encontrado, retorna o habitual
     // HTTP 500: Internal Server Error
     else res.status(500).end()
   }
 }
-
 export default controller
